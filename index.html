@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<title>Soleil</title>
+
+<select oninput="draw()"></select>
+<canvas width="100%"></canvas>
+
+<script>
+onload = function(){
+
+	navigator.geolocation.getCurrentPosition(function(pos){
+		latitude  = pos.coords.latitude
+		longitude = pos.coords.longitude
+		ephemeris(latitude, longitude)
+	})
+	
+	onresize()
+}
+
+
+onresize = function(){
+
+	g = document.querySelector("canvas")
+	g.style.width  = innerWidth +"px"
+	g.style.height = innerHeight+"px"
+	g.width  = 4*innerWidth
+	g.height = 4*innerHeight
+	
+	Ox = g.width/2
+	Oy = g.height/2 
+	size = Math.min(Ox, Oy)/1.3
+
+	g = g.getContext("2d")
+	g.textBaseline = "middle";
+	g.textAlign = "center";
+
+	draw()
+}
+
+
+ephemeris = function(latitude, longitude){
+		
+	url = "https://vo.imcce.fr/webservices/miriade/ephemcc_query.php?"
+	url += "-name=p:Soleil"
+	url += "&-ep=2026-01-01"
+	url += "&-nbd="+365*24
+	url += "&-step=1h"
+	url += "&-observer="+longitude+"+"+latitude
+	url += "&-tcoor=3" // Local coordinates
+	url += "&-mime=text"
+	//console.log(url)
+
+	http = new XMLHttpRequest()
+	http.open("GET", url)
+	http.onload = function(){ read(http.response) }
+	http.send()
+}
+
+
+read = function(txt){
+	data = {}
+	for(line of txt.split(/\r?\n/))
+		if(line[0]!="#" && line!=""){
+			//console.log(line)
+			date = line.substr(2,10)
+			time = Number(line.substr(13,2))
+				 + Number(line.substr(16,2)) /60
+				 + Number(line.substr(19,6)) /3600
+			azimut = Number(line.substr(26, 3))
+			       + Number(line.substr(30, 2)) /60
+			       + Number(line.substr(33, 6)) /3600 
+			elevation = Number(line.substr(41, 2))
+			          + Number(line.substr(44, 2)) /60
+			          + Number(line.substr(47, 5)) /3600
+			if(line.substr(40, 1)=="-")
+				elevation = -elevation
+			if(time==0)
+ 				data[date] = []
+			data[date][time] = { "azimut": azimut, "elevation": elevation }
+	}
+	today = (new Date()).toISOString().substr(0,10)
+	keys = ""
+	for(k of Object.keys(data))
+		if(k==today)
+			keys += "<option selected>"+k+"</option>"
+		else
+			keys += "<option>"+k+"</option>"
+	document.querySelector("select").innerHTML = keys
+
+	path()
+}
+
+
+draw = function(){
+	dial()
+	path()
+}
+
+
+dial = function(){
+
+	g.beginPath()
+	g.fillStyle = "white"
+	g.arc(Ox,Oy,1.4*size,0,2*Math.PI)
+	g.fill()
+
+	g.globalCompositeOperation = "source-atop"
+	g.font = '40px sans-serif'
+	g.beginPath()
+	g.strokeStyle = "darkgrey"
+	for(i=0; i<360; i+=90){
+		x1 = Ox-0/9*size*sin(i)
+		y1 = Oy+0/9*size*cos(i)
+		x2 = Ox-1.4*size*sin(i)
+		y2 = Oy+1.4*size*cos(i)
+		g.moveTo(x1,y1)
+		g.lineTo(x2,y2)
+	}
+	for(i=0; i<360; i+=45){
+		x1 = Ox-1/9*size*sin(i)
+		y1 = Oy+1/9*size*cos(i)
+		x2 = Ox-1.4*size*sin(i)
+		y2 = Oy+1.4*size*cos(i)
+		g.moveTo(x1,y1)
+		g.lineTo(x2,y2)
+	}
+	for(i=0; i<360; i+=15){
+		x1 = Ox-2/9*size*sin(i)
+		y1 = Oy+2/9*size*cos(i)
+		x2 = Ox-1.4*size*sin(i)
+		y2 = Oy+1.4*size*cos(i)
+		g.moveTo(x1,y1)
+		g.lineTo(x2,y2)
+	}
+	for(i=0; i<120; i+=10){
+		g.moveTo(Ox+i/90*size,Oy)
+		g.arc(Ox,Oy,i/90*size, 0, 2*Math.PI)
+	}
+	g.stroke()
+	
+	g.beginPath()
+	g.strokeStyle = "black"
+	g.arc(Ox,Oy,size, 0, 2*Math.PI)
+	for(i=0; i<360; i+=1){
+		x1 = Ox-size*sin(i)
+		y1 = Oy+size*cos(i)
+		x2 = Ox-1.02*size*sin(i)
+		y2 = Oy+1.02*size*cos(i)
+		g.moveTo(x1,y1)
+		g.lineTo(x2,y2)
+	}
+	for(i=0; i<360; i+=10){
+		x1 = Ox-size*sin(i)
+		y1 = Oy+size*cos(i)
+		x2 = Ox-1.04*size*sin(i)
+		y2 = Oy+1.04*size*cos(i)
+		g.moveTo(x1,y1)
+		g.lineTo(x2,y2)
+	}
+	g.stroke()
+	
+	g.beginPath()
+	g.fillStyle = "black"
+	for(i=10; i<=90; i+=10){
+		x = Ox
+		y = Oy-(1-i/90)*size
+		g.fillText(i+"°",x,y)
+	}
+	for(i=0; i<360; i+=10){	
+		x = Ox-1.06*size*sin(i)
+		y = Oy+1.06*size*cos(i)
+		if(i%360==0)
+			g.fillText("Nord", x,y)
+		else
+		if(i%360==90)
+			g.fillText("Est", x,y)
+		else
+		if(i%360==180)
+			g.fillText("Sud", x,y)
+		else
+		if(i%360==270)
+			g.fillText("Ouest", x,y)
+		else
+			g.fillText(i+"°", x,y)
+	}
+	g.stroke()
+}
+
+
+path = function(){
+	if(typeof data == "undefined") return
+	t = document.querySelector("select").value
+	console.log(t)
+	
+	g.beginPath()
+	g.strokeStyle = "red"
+	g.lineWidth = 4
+	g.font = 'bold 50px sans-serif'
+	for(s of data[t]){
+		x = Ox - (90-s.elevation)/90*size*sin(s.azimut)
+		y = Oy + (90-s.elevation)/90*size*cos(s.azimut)
+		g.lineTo(x,y)
+	}
+	g.stroke()
+
+	g.beginPath()
+	for(i=0; i<data[t].length; i++){
+		s = data[t][i]
+		x = Ox - (90-s.elevation)/90*size*sin(s.azimut)
+		y = Oy + (90-s.elevation)/90*size*cos(s.azimut)
+		g.fillText(i,x,y)
+	}
+	g.fill()
+	console.log("Hi")
+}
+
+
+cos = function(t) { return Math.cos(t*Math.PI/180) }
+sin = function(t) { return Math.sin(t*Math.PI/180) }
+</script>
